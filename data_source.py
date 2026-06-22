@@ -4,7 +4,6 @@ from io import BytesIO
 from pathlib import Path
 
 from mcstatus import BedrockServer, JavaServer
-from mcstatus.status_response import BedrockStatusResponse
 from PIL import Image, ImageDraw, ImageFont
 
 from astrbot import logger
@@ -47,17 +46,31 @@ async def get_be_server_status(server_ip: str) -> bytes | None:
         server_port = int(server_port)
     try:
         server = BedrockServer(host=server_ip.strip(), port=server_port)
-        server_status: BedrockStatusResponse = await server.async_status()
+        server_status = await server.async_status()
     except Exception as e:
         logger.warning(f"基岩版服务器{server_ip}查询失败：{e}")
         return None
 
+    players = getattr(server_status, "players", None)
+    if players is not None and hasattr(players, "online"):
+        online = f"{players.online} / {players.max}"
+    else:
+        online = f"{server_status.players_online} / {server_status.players_max}"
+
+    version = server_status.version
+    if hasattr(version, "name"):
+        server_version = version.name
+    elif hasattr(version, "version"):
+        server_version = version.version
+    else:
+        server_version = str(version)
+
     return get_server_info_image(
         motd=str(server_status.motd),
         icon_base64=None,
-        online=f"{server_status.players_online} / {server_status.players_max}\n",
+        online=online,
         ping=int(server_status.latency),
-        server_version=server_status.version.version,
+        server_version=server_version,
     )
 
 
