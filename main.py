@@ -80,23 +80,36 @@ class MCPingPlugin(Star):
 
     @staticmethod
     def _parse_input(raw: str) -> tuple[str, str]:
-        """从原始输入中分离 地址 与 名称。
-
-        /addsvr gxucraft.cn 生存服  → ("gxucraft.cn", "生存服")
-        /mcp gxucraft.cn            → ("gxucraft.cn", "")
-        """
+        """从原始输入中分离 地址 与 名称。"""
         raw = raw.strip()
         if " " in raw:
             addr, _, name = raw.partition(" ")
             return addr.strip(), name.strip()
         return raw, ""
 
+    def _parse_command_args(
+        self, event: AstrMessageEvent, command: str
+    ) -> tuple[str, str]:
+        """从原始消息中提取命令参数，解决 AstrBot 只传首词的问题。
+
+        /addsvr gxucraft.cn 生存服  → ("gxucraft.cn", "生存服")
+        """
+        text = event.message_str.strip()
+        # 去除指令前缀和命令名
+        for prefix in ("/", "。"):
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+                break
+        if text.lower().startswith(command.lower()):
+            text = text[len(command):].strip()
+        return self._parse_input(text)
+
     @filter.command("mcp", alias={"mcping", "MCP"}, desc="获取 Minecraft JE/BE 服务器 Motd 图片信息")
     async def on_command(self, event: AstrMessageEvent, server_ip: str | None = None):
         if not server_ip:
             yield event.plain_result("未提供服务器IP/域名")
             return
-        address, name = self._parse_input(server_ip)
+        address, name = self._parse_command_args(event, "mcp") or self._parse_input(server_ip)
         status_img = await query_server_status(address, server_name=name)
         if status_img:
             yield event.chain_result([Comp.Image.fromBytes(status_img)])
@@ -116,7 +129,7 @@ class MCPingPlugin(Star):
             )
             return
 
-        address, name = self._parse_input(server_ip)
+        address, name = self._parse_command_args(event, "addsvr")
         logger.info(f"addsvr parsed: address={address}, name={name}")
         ok, message = self.store.add_server(
             self._get_scope_key(event), address, name
@@ -142,7 +155,7 @@ class MCPingPlugin(Star):
         servers = self.store.list_servers(scope_key)
 
         if server_ip:
-            address, name = self._parse_input(server_ip)
+            address, name = self._parse_command_args(event, "status") or self._parse_input(server_ip)
             targets = [{"address": address, "name": name}]
         elif not event.get_group_id():
             yield event.plain_result("私聊中请使用 /status <服务器地址> 查询指定服务器。")
