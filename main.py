@@ -3,6 +3,8 @@ from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core.platform import AstrMessageEvent
 
+from astrbot.api import logger
+
 from .data_source import query_server_status
 from .server_store import ServerStore
 
@@ -115,6 +117,7 @@ class MCPingPlugin(Star):
             return
 
         address, name = self._parse_input(server_ip)
+        logger.info(f"addsvr parsed: address={address}, name={name}")
         ok, message = self.store.add_server(
             self._get_scope_key(event), address, name
         )
@@ -158,6 +161,7 @@ class MCPingPlugin(Star):
         for entry in targets:
             address = entry["address"]
             name = entry.get("name", "")
+            logger.info(f"querying server: address={address}, name={name}")
             status_img = await query_server_status(address, server_name=name)
             if status_img:
                 sent = True

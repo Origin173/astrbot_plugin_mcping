@@ -167,6 +167,7 @@ def get_server_info_image(
 
     # 添加标题（自定义名称）或直接显示 MOTD
     if server_name:
+        logger.info(f"drawing title: {server_name}")
         draw_title(
             draw=draw,
             title=server_name,
