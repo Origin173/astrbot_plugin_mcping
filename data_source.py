@@ -172,6 +172,7 @@ def get_server_info_image(
             draw=draw,
             title=server_name,
             word_start=word_start,
+            max_width=image_long - word_start - 20,
             title_y=image_side - 30,
             font_size=24,
         )
@@ -233,16 +234,58 @@ def draw_title(
     draw: ImageDraw.ImageDraw,
     title: str,
     word_start: int,
+    max_width: int,
     title_y: int,
     font_size: int,
 ):
-    """绘制服务器自定义名称标题"""
+    """绘制服务器自定义名称标题，并自动缩放以适配可用宽度。"""
+    fitted_font, fitted_title = fit_text_to_width(
+        draw=draw,
+        text=title,
+        max_width=max_width,
+        font_size=font_size,
+        min_font_size=12,
+    )
     draw.text(
         xy=(word_start, title_y),
-        text=title,
+        text=fitted_title,
         fill=get_color("§e"),
-        font=get_font(font_size),
+        font=fitted_font,
     )
+
+
+def fit_text_to_width(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    font_size: int,
+    min_font_size: int = 12,
+) -> tuple[ImageFont.FreeTypeFont, str]:
+    """把文本缩放到指定宽度内，必要时做省略。"""
+    text = text.strip()
+    if not text:
+        return get_font(min_font_size), text
+
+    for size in range(font_size, min_font_size - 1, -1):
+        font = get_font(size)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        if bbox[2] - bbox[0] <= max_width:
+            return font, text
+
+    font = get_font(min_font_size)
+    ellipsis = "..."
+    if draw.textbbox((0, 0), ellipsis, font=font)[2] - draw.textbbox((0, 0), ellipsis, font=font)[0] > max_width:
+        return font, ""
+
+    fitted = text
+    while fitted:
+        candidate = fitted + ellipsis
+        bbox = draw.textbbox((0, 0), candidate, font=font)
+        if bbox[2] - bbox[0] <= max_width:
+            return font, candidate
+        fitted = fitted[:-1]
+
+    return font, ellipsis
 
 
 def draw_motd(
