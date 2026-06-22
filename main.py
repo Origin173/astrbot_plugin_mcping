@@ -19,12 +19,26 @@ class MCPingPlugin(Star):
             event.get_group_id(), event.unified_msg_origin
         )
 
+    @staticmethod
+    def _parse_input(raw: str) -> tuple[str, str]:
+        """从原始输入中分离 地址 与 名称。
+
+        /addsvr gxucraft.cn 生存服  → ("gxucraft.cn", "生存服")
+        /mcp gxucraft.cn            → ("gxucraft.cn", "")
+        """
+        raw = raw.strip()
+        if " " in raw:
+            addr, _, name = raw.partition(" ")
+            return addr.strip(), name.strip()
+        return raw, ""
+
     @filter.command("mcp", alias={"mcping", "MCP"}, desc="获取 Minecraft JE/BE 服务器 Motd 图片信息")
     async def on_command(self, event: AstrMessageEvent, server_ip: str | None = None):
         if not server_ip:
             yield event.plain_result("未提供服务器IP/域名")
             return
-        status_img = await query_server_status(server_ip)
+        address, name = self._parse_input(server_ip)
+        status_img = await query_server_status(address, server_name=name)
         if status_img:
             yield event.chain_result([Comp.Image.fromBytes(status_img)])
         else:
@@ -35,10 +49,16 @@ class MCPingPlugin(Star):
     @filter.command("addsvr", desc="添加本群 MC 服务器（仅群管理员）")
     async def addsvr(self, event: AstrMessageEvent, server_ip: str | None = None):
         if not server_ip:
-            yield event.plain_result("用法：/addsvr <服务器地址>\n例如：/addsvr gxucraft.cn")
+            yield event.plain_result(
+                "用法：/addsvr <服务器地址> [名称]\n"
+                "例如：/addsvr gxucraft.cn 生存服"
+            )
             return
 
-        ok, message = self.store.add_server(self._get_scope_key(event), server_ip)
+        address, name = self._parse_input(server_ip)
+        ok, message = self.store.add_server(
+            self._get_scope_key(event), address, name
+        )
         yield event.plain_result(message)
 
     @filter.permission_type(filter.PermissionType.ADMIN)
@@ -58,7 +78,8 @@ class MCPingPlugin(Star):
         servers = self.store.list_servers(scope_key)
 
         if server_ip:
-            targets = [server_ip.strip()]
+            address, name = self._parse_input(server_ip)
+            targets = [{"address": address, "name": name}]
         elif not event.get_group_id():
             yield event.plain_result("私聊中请使用 /status <服务器地址> 查询指定服务器。")
             return
@@ -67,19 +88,21 @@ class MCPingPlugin(Star):
         else:
             yield event.plain_result(
                 "当前群聊尚未添加服务器。\n"
-                "群管理员可使用 /addsvr <地址> 添加服务器。"
+                "群管理员可使用 /addsvr <地址> [名称] 添加服务器。"
             )
             return
 
         failed: list[str] = []
         sent = False
-        for address in targets:
-            status_img = await query_server_status(address)
+        for entry in targets:
+            address = entry["address"]
+            name = entry.get("name", "")
+            status_img = await query_server_status(address, server_name=name)
             if status_img:
                 sent = True
                 yield event.chain_result([Comp.Image.fromBytes(status_img)])
             else:
-                failed.append(address)
+                failed.append(name or address)
 
         if failed:
             yield event.plain_result("以下服务器查询失败：\n" + "\n".join(failed))

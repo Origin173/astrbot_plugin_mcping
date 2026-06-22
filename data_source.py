@@ -12,14 +12,18 @@ FONT_PATH: Path = Path(__file__).resolve().parent / "resource" / "simhei.ttf"
 BACKGROUND_PATH: Path = Path(__file__).resolve().parent / "resource" / "background.png"
 
 
-async def query_server_status(server_ip: str) -> bytes | None:
+async def query_server_status(
+    server_ip: str, server_name: str = ""
+) -> bytes | None:
     """依次尝试 Java 版与基岩版查询。"""
-    return await get_java_server_status(server_ip) or await get_be_server_status(
-        server_ip
+    return await get_java_server_status(server_ip, server_name) or await get_be_server_status(
+        server_ip, server_name
     )
 
 
-async def get_java_server_status(server_ip: str) -> bytes | None:
+async def get_java_server_status(
+    server_ip: str, server_name: str = ""
+) -> bytes | None:
     if ":" not in server_ip:
         server_ip += ":25565"
     try:
@@ -34,6 +38,7 @@ async def get_java_server_status(server_ip: str) -> bytes | None:
         or getattr(server_status, "icon_base64", None)
     )
     return get_server_info_image(
+        server_name=server_name,
         motd=server_status.description,
         icon_base64=favicon.removeprefix("data:image/png;base64,") if favicon else None,
         online=f"{server_status.players.online} / {server_status.players.max}",
@@ -42,7 +47,9 @@ async def get_java_server_status(server_ip: str) -> bytes | None:
     )
 
 
-async def get_be_server_status(server_ip: str) -> bytes | None:
+async def get_be_server_status(
+    server_ip: str, server_name: str = ""
+) -> bytes | None:
     server_port = 19132  # 默认端口号
     if ":" in server_ip:
         server_ip, server_port = server_ip.split(":")
@@ -69,6 +76,7 @@ async def get_be_server_status(server_ip: str) -> bytes | None:
         server_version = str(version)
 
     return get_server_info_image(
+        server_name=server_name,
         motd=str(server_status.motd),
         icon_base64=None,
         online=online,
@@ -131,6 +139,7 @@ def get_server_info_image(
     online: str,
     ping: int,
     server_version: str,
+    server_name: str = "",
 ) -> bytes:
     # 通过颜色字符分割
     motd_list = motd.replace("§", ";;;§").splitlines(True)
@@ -156,14 +165,31 @@ def get_server_info_image(
     word_start = image_side * 2 + 64
     """文字起始像素"""
 
-    # 添加motd
-    draw_motd(
-        draw=draw,
-        word_start=word_start,
-        image_side=image_side,
-        motd_list=motd_list,
-        font_size=20,
-    )
+    # 添加标题（自定义名称）或直接显示 MOTD
+    if server_name:
+        draw_title(
+            draw=draw,
+            title=server_name,
+            word_start=word_start,
+            title_y=image_side - 30,
+            font_size=24,
+        )
+        # MOTD 作为标题下方的副标题
+        draw_motd(
+            draw=draw,
+            word_start=word_start,
+            image_side=image_side + 10,
+            motd_list=motd_list,
+            font_size=16,
+        )
+    else:
+        draw_motd(
+            draw=draw,
+            word_start=word_start,
+            image_side=image_side,
+            motd_list=motd_list,
+            font_size=20,
+        )
 
     # 添加人数
     draw_online(
@@ -200,6 +226,22 @@ def draw_icon(icon_base64: str, image_side: int, background_image:Image.Image):
     # 将icon粘贴至背景
     box = (image_side, image_side, image_side + 64, image_side + 64)
     background_image.paste(icon_image, box)
+
+
+def draw_title(
+    draw: ImageDraw.ImageDraw,
+    title: str,
+    word_start: int,
+    title_y: int,
+    font_size: int,
+):
+    """绘制服务器自定义名称标题"""
+    draw.text(
+        xy=(word_start, title_y),
+        text=title,
+        fill=get_color("§e"),
+        font=get_font(font_size),
+    )
 
 
 def draw_motd(
