@@ -4,4 +4,4 @@ desc: 获取 Minecraft JE/BE 服务器 Motd 图片信息，支持多服务器管
 help: 群管理员 /addsvr /delsvr 管理服务器，/status 查询状态
 version: v1.1.1
 author: Zhalslar
-repo: https://github.com/Zhalslar/astrbot_plugin_mcping
+repo: https://github.com/Origin173/astrbot_plugin_mcping
