@@ -13,8 +13,15 @@ FONT_PATH: Path = Path(__file__).resolve().parent / "resource" / "simhei.ttf"
 BACKGROUND_PATH: Path = Path(__file__).resolve().parent / "resource" / "background.png"
 
 
+async def query_server_status(server_ip: str) -> bytes | None:
+    """依次尝试 Java 版与基岩版查询。"""
+    return await get_java_server_status(server_ip) or await get_be_server_status(
+        server_ip
+    )
+
+
 async def get_java_server_status(server_ip: str) -> bytes | None:
-    if server_ip.find(":") != -1:
+    if ":" not in server_ip:
         server_ip += ":25565"
     try:
         server = await JavaServer.async_lookup(server_ip.strip())
