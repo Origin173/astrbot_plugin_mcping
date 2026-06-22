@@ -20,6 +20,22 @@ class MCPingPlugin(Star):
         )
 
     @staticmethod
+    def _is_group_admin(event: AstrMessageEvent) -> bool:
+        """检查发送者是否为群管理员或群主。"""
+        try:
+            raw = event.message_obj.raw_message
+            sender = getattr(raw, "sender", None)
+            if sender is None:
+                return False
+            if isinstance(sender, dict):
+                role = sender.get("role", "")
+            else:
+                role = getattr(sender, "role", "")
+            return role in ("owner", "admin")
+        except Exception:
+            return False
+
+    @staticmethod
     def _parse_input(raw: str) -> tuple[str, str]:
         """从原始输入中分离 地址 与 名称。
 
@@ -44,10 +60,12 @@ class MCPingPlugin(Star):
         else:
             yield event.plain_result("查询失败")
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     @filter.command("addsvr", desc="添加本群 MC 服务器（仅群管理员）")
     async def addsvr(self, event: AstrMessageEvent, server_ip: str | None = None):
+        if not self._is_group_admin(event):
+            yield event.plain_result("仅群管理员可添加服务器")
+            return
         if not server_ip:
             yield event.plain_result(
                 "用法：/addsvr <服务器地址> [名称]\n"
@@ -61,10 +79,12 @@ class MCPingPlugin(Star):
         )
         yield event.plain_result(message)
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     @filter.command("delsvr", desc="删除本群 MC 服务器（仅群管理员）")
     async def delsvr(self, event: AstrMessageEvent, server_ip: str | None = None):
+        if not self._is_group_admin(event):
+            yield event.plain_result("仅群管理员可删除服务器")
+            return
         if not server_ip:
             yield event.plain_result("用法：/delsvr <服务器地址>\n例如：/delsvr gxucraft.cn")
             return
