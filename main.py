@@ -21,19 +21,60 @@ class MCPingPlugin(Star):
 
     @staticmethod
     def _is_group_admin(event: AstrMessageEvent) -> bool:
-        """检查发送者是否为群管理员或群主。"""
+        """检查发送者是否为群管理员或群主。
+
+        兼容 OneBot v11（sender.role）与 QQ 官方（member.roles）等平台。
+        """
+        # AstrBot 系统管理员始终放行
+        try:
+            if event.is_admin():
+                return True
+        except Exception:
+            pass
+
         try:
             raw = event.message_obj.raw_message
+
+            # 路径1: OneBot v11 — sender.role
             sender = getattr(raw, "sender", None)
-            if sender is None:
-                return False
-            if isinstance(sender, dict):
-                role = sender.get("role", "")
-            else:
-                role = getattr(sender, "role", "")
-            return role in ("owner", "admin")
+            if sender is not None:
+                role = (
+                    sender.get("role", "")
+                    if isinstance(sender, dict)
+                    else getattr(sender, "role", "")
+                )
+                if role in ("owner", "admin"):
+                    return True
+
+            # 路径2: QQ 官方 / 其他平台 — member.roles（list）
+            member = getattr(raw, "member", None)
+            if member is not None:
+                roles: list = (
+                    member.get("roles", [])
+                    if isinstance(member, dict)
+                    else getattr(member, "roles", [])
+                )
+                if isinstance(roles, list):
+                    for r in roles:
+                        rl = str(r).lower()
+                        # QQ 官方角色：群主/管理员 或 role_id 4/3
+                        if rl in ("owner", "admin", "群主", "管理员", "4", "3"):
+                            return True
+
+            # 路径3: raw 本身是 dict
+            if isinstance(raw, dict):
+                s = raw.get("sender", {})
+                if isinstance(s, dict) and s.get("role", "") in ("owner", "admin"):
+                    return True
+                m = raw.get("member", {})
+                if isinstance(m, dict):
+                    for r in m.get("roles", []):
+                        if str(r).lower() in ("owner", "admin", "群主", "管理员", "4", "3"):
+                            return True
         except Exception:
             return False
+
+        return False
 
     @staticmethod
     def _parse_input(raw: str) -> tuple[str, str]:
