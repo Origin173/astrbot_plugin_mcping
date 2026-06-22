@@ -28,11 +28,14 @@ async def get_java_server_status(server_ip: str) -> bytes | None:
     except Exception as e:
         logger.warning(f"JAVA版服务器{server_ip}查询失败：{e}")
         return None
+    favicon = (
+        getattr(server_status, "favicon", None)
+        or getattr(server_status, "icon", None)
+        or getattr(server_status, "icon_base64", None)
+    )
     return get_server_info_image(
         motd=server_status.description,
-        icon_base64=server_status.favicon.removeprefix("data:image/png;base64,")
-        if server_status.favicon
-        else None,
+        icon_base64=favicon.removeprefix("data:image/png;base64,") if favicon else None,
         online=f"{server_status.players.online} / {server_status.players.max}",
         ping=int(server_status.latency),
         server_version=server_status.version.name,
